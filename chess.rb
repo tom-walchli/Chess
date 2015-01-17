@@ -1,12 +1,24 @@
 #############################################################
 # 															#  
 #  Assert validity of a sequence of moves on a chess board  #
+#              and draw board in console					#
 # 															#
 #############################################################
 require 'colorize'
 
 class ChessBoard
 	attr_reader :pieces
+
+	# convert alphanumeric position (e.g. 'a7', 'b3', etc..) to array (e.g. [0,6], [1,2], etc.)
+	def self.posConverter(pos) 		
+		return  [(pos[0]).ord-97,pos[1].to_i-1]
+	end
+
+	# restore alphanumeric position from [x,y]
+	def self.posReConverter(pos)
+		return (pos[0]+97).chr.to_s + (pos[1] + 1).to_s
+	end
+
 	def initialize(movements, delay=3)
 		@delay 		= delay
 		@movements 	= movements
@@ -18,8 +30,8 @@ class ChessBoard
 	def startMoving
 		@moveIDX = 0
 		while @goodMove && @moveIDX < @movements.length
-			system "clear" or "cls"
-			puts "ID = #{@moveIDX}"
+			system "cls" 
+			puts "\nID = #{@moveIDX}"
 			assessValidMove(@movements[@moveIDX])
 			puts "\n"
 			Display.new(self)
@@ -29,23 +41,17 @@ class ChessBoard
 		end
 	end
 
-	def self.posConverter(pos)
-		return  [(pos[0]).ord-97,pos[1].to_i-1]
-	end
-
-	def self.posReConverter(pos)
-		return (pos[0]+97).chr.to_s + (pos[1] + 1).to_s
-	end
-
-	def assessValidMove(movesAlpha)
-		@movesAlpha = movesAlpha
+	def assessValidMove(movesAlpha) # ('alpha' for alphanumeric)
 		@pos1 		= ChessBoard.posConverter(movesAlpha[0])
 		@pos2 		= ChessBoard.posConverter(movesAlpha[1])
+
+		# difference of the two positions
 		@dPos 		= [ @pos2[0] - @pos1[0] , @pos2[1] - @pos1[1] ] 
 
 		piece1 		= @pieces[movesAlpha[0]]
-		piece2 		= @pieces[@movesAlpha[1]]
+		piece2 		= @pieces[movesAlpha[1]]
 
+		# 'mode' is for now only used for 'take'
 		mode = []
 		if !piece1 
 			puts "no piece at pos1, #{movesAlpha[0]}          -- return"
@@ -59,13 +65,12 @@ class ChessBoard
 			mode.push(:take)
 		end
 
-		# dPos_new reduces dPos to unit steps and fractions thereof [-1..1, -1..1]
-		# Obviously, if fractions occur, a move will not be possile... 	
+		# dPos_new reduces dPos to unit steps [-1..1, -1..1] and fractions thereof
+		# to check with allowed moves of Bishop, Rook and Queen
 		dPos_new = correctDPos(piece1,@dPos)
-#		p "dPos_new: #{@dPos_new}"
 
+		# see if piece1 is allowed to move in direction dPos_new
 		validMove = nil
-
 		piece1.moves.each_with_index do |move,j|
 			if move[0] == dPos_new[0] && move[1] == dPos_new[1]
 				p "valid move found for #{piece1.class}: #{move}"
@@ -79,33 +84,40 @@ class ChessBoard
 			return
 		end
 
-
+		# check for Pawn if the move is only an initial move and if the pawn has previously been moved
 		if !checkInitial(piece1,validMove)
 			return
 		end
 
+		# check for Pawn if the move is allowed for a take (if mode == [:take]) or 
+		# if the move is only for a take (if mode != [:take])
 		if !checkTake(piece1,mode,validMove)
 			return
 		end
 
+		# check if multi-unit moves are obstructed (does not apply to Knights)
 		if obstructed(@pos1,@dPos, validMove, piece1)
 			puts "you have an obstruction in your way...        -- return".yellow
 			return
 		end
 
+		# If it's a take, remove piece2
 		if mode.include?(:take)
 			puts "ATTACK!!!".red
-			doTake(piece2,@movesAlpha[1])
+			doTake(piece2,movesAlpha[1])
 		end
 
-		doMove(piece1,@movesAlpha[0],@movesAlpha[1])
+		# do the actual move...
+		doMove(piece1,movesAlpha[0],movesAlpha[1])
 	end
 
+	# remove piece from @pieces
 	def doTake(piece,location)
 		puts "removing #{piece.class} from #{location}.".red
 		@pieces.reject!{ |k| k == location } 
 	end
 
+	# move piece (from,to) in @pieces and update its internal position
 	def doMove(piece, from,to)
 		puts "moving #{piece.class} from #{from} to #{to}.".green 
 		piece.initial  = false
@@ -115,6 +127,8 @@ class ChessBoard
 		@pieces.reject!{ |k| k == from }
 	end
 
+	# check for Pawn if the move is allowed for a take (if mode == [:take]) or 
+	# if the move is only for a take (if mode != [:take])
 	def checkTake(piece,mode,validMove)
 		if piece.class.to_s == "Pawn"
 			# p validMove[2] == "take" 
@@ -130,6 +144,7 @@ class ChessBoard
 		return true
 	end
 
+	# check for Pawn if the move is only an initial move and if the pawn has previously been moved
 	def checkInitial(piece,validMove)
 		if piece.class.to_s == "Pawn"
 			if validMove[2] == "initial" && !piece.initial
@@ -140,6 +155,7 @@ class ChessBoard
 		return true
 	end
 
+	# check if multi-unit moves are obstructed (does not apply to Knights)
 	def obstructed(pos1, dPos, goodMove, piece)
 		if piece.class.to_s == "Knight"
 			return false
@@ -161,8 +177,10 @@ class ChessBoard
 		return false
 	end
 
+	# reduce dPos to unit steps [-1..1, -1..1] and fractions thereof
+	# to check with allowed moves of Bishop, Rook and Queen
 	def correctDPos(piece1,dPos)
-		if !piece1.moveLine
+		if !piece1.multiUnit
 			return dPos
 		else
 			maxAbs = dPos.map {|x| x.abs}.max
@@ -215,14 +233,22 @@ class ChessBoard
 end
 
 class Piece
-	attr_reader 	:team , :moves , :moveLine , :symbol
+	# moves     : A list of allowed moves
+	# 		      for Bishop, Knight and Queen: single unit moves
+	# multiUnit : Whether or not multi unit moves are allowed for the Piece
+	# team		: white or black...
+	# initial   : only relevant for Pawn. Whether or not he's been moved before
+	# symbol	: how the piece appears in Display
+	# posAlpha 	: Alphanumeric position of the piece ('a5', 'b3', etc..)
+	# position  : position in zero-based coordinates ('a5' -> [0,4])
+	attr_reader 	:team , :moves , :multiUnit , :symbol
 	attr_accessor 	:initial , :posAlpha , :position
 
 	def initialize(team, pos)
 		@posAlpha		= pos
 		@position		= ChessBoard.posConverter(pos)
 		@team			= team
-		@moveLine 		= false
+		@multiUnit 		= false
 		@initial 		= true
 	end
 end
@@ -240,7 +266,7 @@ class Bishop  < Piece #laeufer
 	def initialize(team, pos)
 		super 
 		@symbol = (team == "white" ? "B" : "b")
-		@moveLine  = true
+		@multiUnit  = true
 		@moves  = [[1,1],[1,-1],[-1,1],[-1,-1]]
 	end
 end
@@ -256,7 +282,7 @@ end
 class Rook < Piece #Turm
 	def initialize(team, pos)
 		super 
-		@moveLine  = true
+		@multiUnit  = true
 		@symbol = (team == "white" ? "R" : "r")
 		@moves  = [[1,0],[-1,0],[0,1],[0,-1]]
 	end
@@ -265,7 +291,7 @@ end
 class Queen < Piece
 	def initialize(team, pos)
 		super 
-		@moveLine  = true
+		@multiUnit  = true
 		@symbol = (team == "white" ? "Q" : "q")
 		@moves  = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]
 	end
@@ -286,6 +312,16 @@ class Display
 		drawBoard(@fullBoard)
 	end
 
+	# fill an array with 8x8 blanks and replace blanks with Pieces, where they stand:
+	# ["rkbwqbkr",
+	#  "pppppppp",
+	#  "        ",
+	#  "        ",
+	#  "        ",
+	#  "        ",
+	#  "PPPPPPPP",
+	#  "RKBWQBKR"]
+	#  ... for the opening position
 	def fillBoard
 		blank = ((" "*8 + ",") * 8).split(",")
 		@chessBoard.pieces.keys.each do |key|
@@ -298,21 +334,19 @@ class Display
 		return blank
 	end
 
-	def drawBoard(charset)
+	# draw the board around char-array from fillBoard()
+	def drawBoard(charArr)
 		delim 		= " | "
 		delimDbl 	= " || "
-		board 		= []
 		@baseChars  = ("  " + delimDbl + ("a".."h").to_a.join(delim) + delimDbl + "  ")
 		@hLine	 	= ("-" * 41)
 		@hLineDbl 	= ("=" * 41)
+		board 		= []
 		board.push(@baseChars)
 		board.push(@hLineDbl)
-		j = 0
-		while j < 8
-			s = " #{j+1}#{delimDbl}#{charset[j].split("").join(delim)}#{delimDbl}#{j+1} "
-			board.push(s)
+		for j in (0..7)
+			board.push(" #{j+1}#{delimDbl}#{charArr[j].split("").join(delim)}#{delimDbl}#{j+1} ")
 			board.push(@hLine)
-			j += 1
 		end
 		board.pop
 		board.push(@hLineDbl)
@@ -328,5 +362,5 @@ movements = [["b1", "a3"],["b2", "b4"],["a3", "c4"],["c4", "d6"],
 # 			["a7", "a5"],["a7", "a4"],["a7", "b6"],["b8", "a6"],
 # 			["b8", "c6"],["b8", "d7"],["e2", "e3"],["e3", "e2"]]
 
-ChessBoard.new(movements)
-#Display.new
+# ChessBoard (Array of moves, Delay between moves [sec] = 3)
+ChessBoard.new(movements) 
