@@ -3,22 +3,29 @@
 #  Assert validity of a sequence of moves on a chess board  #
 # 															#
 #############################################################
+require 'colorize'
 
 class ChessBoard
-	attr_accessor :pieces
-	def initialize(movements)
-		@movements = movements
+	attr_reader :pieces
+	def initialize(movements, delay=3)
+		@delay 		= delay
+		@movements 	= movements
 		initPieces
-		@goodMove = true
+		@goodMove 	= true
 		startMoving
 	end
 
 	def startMoving
 		@moveIDX = 0
 		while @goodMove && @moveIDX < @movements.length
+			system "clear" or "cls"
 			puts "ID = #{@moveIDX}"
 			assessValidMove(@movements[@moveIDX])
+			puts "\n"
+			Display.new(self)
+			puts "\n\n"
 			@moveIDX += 1
+			sleep(@delay)
 		end
 	end
 
@@ -68,7 +75,7 @@ class ChessBoard
 		end
 
 		if !validMove
-			puts "no valid move found for #{piece1.class}     -- return"
+			puts "no valid move found for #{piece1.class}     -- return".red
 			return
 		end
 
@@ -82,12 +89,12 @@ class ChessBoard
 		end
 
 		if obstructed(@pos1,@dPos, validMove, piece1)
-			puts "you have an obstruction in the way...        -- return"
+			puts "you have an obstruction in your way...        -- return".yellow
 			return
 		end
 
 		if mode.include?(:take)
-			puts "ATTACK!!!"
+			puts "ATTACK!!!".red
 			doTake(piece2,@movesAlpha[1])
 		end
 
@@ -95,14 +102,16 @@ class ChessBoard
 	end
 
 	def doTake(piece,location)
-		puts "removing #{piece.class} from #{location}." 
+		puts "removing #{piece.class} from #{location}.".red
 		@pieces.reject!{ |k| k == location } 
 	end
 
 	def doMove(piece, from,to)
-		puts "moving #{piece.class} from #{from} to #{to}." 
-		piece.initial = false
-		@pieces[to] = piece
+		puts "moving #{piece.class} from #{from} to #{to}.".green 
+		piece.initial  = false
+		piece.posAlpha = to
+		piece.position = ChessBoard.posConverter(to)
+		@pieces[to]    = piece
 		@pieces.reject!{ |k| k == from }
 	end
 
@@ -164,54 +173,54 @@ class ChessBoard
 
 	def initPieces
 		@pieces = {}
-		@pieces['a2'] = Pawn.new('white')	
-		@pieces['b2'] = Pawn.new('white')	
-		@pieces['c2'] = Pawn.new('white')	
-		@pieces['d2'] = Pawn.new('white')	
-		@pieces['e2'] = Pawn.new('white')	
-		@pieces['f2'] = Pawn.new('white')	
-		@pieces['g2'] = Pawn.new('white')	
-		@pieces['h2'] = Pawn.new('white')	
-		@pieces['a7'] = Pawn.new('black')	
-		@pieces['b7'] = Pawn.new('black')	
-		@pieces['c7'] = Pawn.new('black')	
-		@pieces['d7'] = Pawn.new('black')	
-		@pieces['e7'] = Pawn.new('black')	
-		@pieces['f7'] = Pawn.new('black')	
-		@pieces['g7'] = Pawn.new('black')	
-		@pieces['h7'] = Pawn.new('black')	
+		@pieces['a2'] = Pawn.new('white','a2')	
+		@pieces['b2'] = Pawn.new('white','b2')	
+		@pieces['c2'] = Pawn.new('white','c2')	
+		@pieces['d2'] = Pawn.new('white','d2')	
+		@pieces['e2'] = Pawn.new('white','e2')	
+		@pieces['f2'] = Pawn.new('white','f2')	
+		@pieces['g2'] = Pawn.new('white','g2')	
+		@pieces['h2'] = Pawn.new('white','h2')	
+		@pieces['a7'] = Pawn.new('black','a7')	
+		@pieces['b7'] = Pawn.new('black','b7')	
+		@pieces['c7'] = Pawn.new('black','c7')	
+		@pieces['d7'] = Pawn.new('black','d7')	
+		@pieces['e7'] = Pawn.new('black','e7')	
+		@pieces['f7'] = Pawn.new('black','f7')	
+		@pieces['g7'] = Pawn.new('black','g7')	
+		@pieces['h7'] = Pawn.new('black','h7')	
 
-		@pieces['a1'] = Rook.new('white')	
-		@pieces['h1'] = Rook.new('white')	
-		@pieces['a8'] = Rook.new('black')	
-		@pieces['h8'] = Rook.new('black')	
+		@pieces['a1'] = Rook.new('white','a1')	
+		@pieces['h1'] = Rook.new('white','h1')	
+		@pieces['a8'] = Rook.new('black','a8')	
+		@pieces['h8'] = Rook.new('black','h8')	
 
-		@pieces['b1'] = Knight.new('white')	
-		@pieces['g1'] = Knight.new('white')	
-		@pieces['b8'] = Knight.new('black')	
-		@pieces['g8'] = Knight.new('black')	
+		@pieces['b1'] = Knight.new('white','b1')	
+		@pieces['g1'] = Knight.new('white','g1')	
+		@pieces['b8'] = Knight.new('black','b8')	
+		@pieces['g8'] = Knight.new('black','g8')	
 
-		@pieces['c1'] = Bishop.new('white')	
-		@pieces['f1'] = Bishop.new('white')	
-		@pieces['c8'] = Bishop.new('black')	
-		@pieces['f8'] = Bishop.new('black')	
+		@pieces['c1'] = Bishop.new('white','c1')	
+		@pieces['f1'] = Bishop.new('white','f1')	
+		@pieces['c8'] = Bishop.new('black','c8')	
+		@pieces['f8'] = Bishop.new('black','f8')	
 
-		@pieces['e1'] = Queen.new('white')	
-		@pieces['e8'] = Queen.new('black')	
+		@pieces['e1'] = Queen.new('white','e1')	
+		@pieces['e8'] = Queen.new('black','e8')	
 
-		@pieces['d1'] = King.new('white')	
-		@pieces['d8'] = King.new('black')	
+		@pieces['d1'] = King.new('white','d1')	
+		@pieces['d8'] = King.new('black','d8')	
 	end
 
 end
 
 class Piece
-	attr_reader 	:team 		# white/black
-	attr_reader 	:moves
-	attr_reader 	:moveLine
-	attr_accessor 	:initial
+	attr_reader 	:team , :moves , :moveLine , :symbol
+	attr_accessor 	:initial , :posAlpha , :position
 
-	def initialize(team)
+	def initialize(team, pos)
+		@posAlpha		= pos
+		@position		= ChessBoard.posConverter(pos)
 		@team			= team
 		@moveLine 		= false
 		@initial 		= true
@@ -219,48 +228,96 @@ class Piece
 end
 
 class Pawn < Piece
-	def initialize(team)
+	def initialize(team, pos)
 		super 
+		@symbol = (team == "white" ? "P" : "p")
 		@upDown = (team == "white" ? 1 : -1)
 		@moves  = [[0,@upDown],[0,2*@upDown,'initial'],[1,@upDown,'take'],[-1,@upDown,'take']]
 	end
 end
 
 class Bishop  < Piece #laeufer
-	def initialize(team)
+	def initialize(team, pos)
 		super 
+		@symbol = (team == "white" ? "B" : "b")
 		@moveLine  = true
 		@moves  = [[1,1],[1,-1],[-1,1],[-1,-1]]
 	end
 end
 
 class Knight < Piece #Springer
-	def initialize(team)
+	def initialize(team, pos)
 		super 
+		@symbol = (team == "white" ? "K" : "k")
 		@moves  = [[2,1],[2,-1],[1,2],[1,-2],[-1,-2],[-1,2],[-2,1],[-2,-1]]
 	end
 end
 
 class Rook < Piece #Turm
-	def initialize(team)
+	def initialize(team, pos)
 		super 
 		@moveLine  = true
+		@symbol = (team == "white" ? "R" : "r")
 		@moves  = [[1,0],[-1,0],[0,1],[0,-1]]
 	end
 end
 
 class Queen < Piece
-	def initialize(team)
+	def initialize(team, pos)
 		super 
 		@moveLine  = true
+		@symbol = (team == "white" ? "Q" : "q")
 		@moves  = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]
 	end
 end
 
 class King < Piece
-	def initialize(team)
+	def initialize(team, pos)
 		super 
+		@symbol = (team == "white" ? "W" : "w")
 		@moves  = [[0,1],[0,-1],[1,1],[1,0],[1,-1],[-1,-1],[-1,1],[-1,0]]
+	end
+end
+
+class Display
+	def initialize (chessBoard)
+		@chessBoard = chessBoard
+		@fullBoard  = fillBoard
+		drawBoard(@fullBoard)
+	end
+
+	def fillBoard
+		blank = ((" "*8 + ",") * 8).split(",")
+		@chessBoard.pieces.keys.each do |key|
+			piece = @chessBoard.pieces[key]
+			pos = piece.position
+			s = blank[pos[1]]
+			s[pos[0]] = piece.symbol
+			blank[pos[1]] = s
+		end
+		return blank
+	end
+
+	def drawBoard(charset)
+		delim 		= " | "
+		delimDbl 	= " || "
+		board 		= []
+		@baseChars  = ("  " + delimDbl + ("a".."h").to_a.join(delim) + delimDbl + "  ")
+		@hLine	 	= ("-" * 41)
+		@hLineDbl 	= ("=" * 41)
+		board.push(@baseChars)
+		board.push(@hLineDbl)
+		j = 0
+		while j < 8
+			s = " #{j+1}#{delimDbl}#{charset[j].split("").join(delim)}#{delimDbl}#{j+1} "
+			board.push(s)
+			board.push(@hLine)
+			j += 1
+		end
+		board.pop
+		board.push(@hLineDbl)
+		board.push(@baseChars)
+		puts board.reverse
 	end
 end
 
@@ -272,3 +329,4 @@ movements = [["b1", "a3"],["b2", "b4"],["a3", "c4"],["c4", "d6"],
 # 			["b8", "c6"],["b8", "d7"],["e2", "e3"],["e3", "e2"]]
 
 ChessBoard.new(movements)
+#Display.new
