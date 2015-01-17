@@ -1,4 +1,8 @@
-
+#############################################################
+# 															#  
+#  Assert validity of a sequence of moves on a chess board  #
+# 															#
+#############################################################
 
 class ChessBoard
 	attr_accessor :pieces
@@ -12,20 +16,18 @@ class ChessBoard
 	def startMoving
 		@moveIDX = 0
 		while @goodMove && @moveIDX < @movements.length
+			puts "ID = #{@moveIDX}"
 			assessValidMove(@movements[@moveIDX])
 			@moveIDX += 1
 		end
 	end
 
 	def self.posConverter(pos)
-		result = [(pos[0]).ord-97,pos[1].to_i-1]
-#		p result
-		return result
+		return  [(pos[0]).ord-97,pos[1].to_i-1]
 	end
+
 	def self.posReConverter(pos)
-		result = (pos[0]+97).chr.to_s + (pos[1] + 1).to_s
-#		p result
-		return result
+		return (pos[0]+97).chr.to_s + (pos[1] + 1).to_s
 	end
 
 	def assessValidMove(movesAlpha)
@@ -33,16 +35,15 @@ class ChessBoard
 		@pos1 		= ChessBoard.posConverter(movesAlpha[0])
 		@pos2 		= ChessBoard.posConverter(movesAlpha[1])
 		@dPos 		= [ @pos2[0] - @pos1[0] , @pos2[1] - @pos1[1] ] 
-		piece1 		= @pieces[movesAlpha[0]]
 
-		puts "ID = #{@moveIDX}"
+		piece1 		= @pieces[movesAlpha[0]]
+		piece2 		= @pieces[@movesAlpha[1]]
 
 		mode = []
 		if !piece1 
 			puts "no piece at pos1, #{movesAlpha[0]}          -- return"
 			return
 		end
-		piece2 	= @pieces[@movesAlpha[1]]
 		if piece2 && piece2.team == piece1.team
 			puts "pos2 #{movesAlpha[1]} occupied by same team -- return"
 			return
@@ -51,36 +52,37 @@ class ChessBoard
 			mode.push(:take)
 		end
 
-		moves = piece1.moves
+		# dPos_new reduces dPos to unit steps and fractions thereof [-1..1, -1..1]
+		# Obviously, if fractions occur, a move will not be possile... 	
+		dPos_new = correctDPos(piece1,@dPos)
+#		p "dPos_new: #{@dPos_new}"
 
-		@dPos_new = correctDPos(piece1,@dPos)
+		validMove = nil
 
-		gotValidMove = nil
-
-		moves.each_with_index do |move,j|
-			if move[0] == @dPos_new[0] && move[1] == @dPos_new[1]
-				gotValidMove = j
+		piece1.moves.each_with_index do |move,j|
+			if move[0] == dPos_new[0] && move[1] == dPos_new[1]
 				p "valid move found for #{piece1.class}: #{move}"
+				validMove = move
 				break
 			end
 		end
-		if gotValidMove == nil
+
+		if !validMove
 			puts "no valid move found for #{piece1.class}     -- return"
 			return
 		end
 
-		validMove = moves[gotValidMove]
 
 		if !checkInitial(piece1,validMove)
 			return
 		end
 
-		if !checkTake(piece1,mode)
+		if !checkTake(piece1,mode,validMove)
 			return
 		end
 
 		if obstructed(@pos1,@dPos, validMove, piece1)
-			puts "you have an obstruction on the way..."
+			puts "you have an obstruction in the way...        -- return"
 			return
 		end
 
@@ -104,47 +106,50 @@ class ChessBoard
 		@pieces.reject!{ |k| k == from }
 	end
 
-	def checkTake(piece,mode)
-		if piece.class != "Pawn"
-			return true
-		end
-		if validMove.include?(:take) && !mode.include?(:take)
-			puts "This move is a take! nothing to take at destination"
-			return false
-		elsif !validMove.include?(:take) && mode.include?(:take)
-			puts "This move is not allowed for a take"
-			return false
+	def checkTake(piece,mode,validMove)
+		if piece.class.to_s == "Pawn"
+			# p validMove[2] == "take" 
+			# p !mode.include?(:take)
+			if validMove[2] == "take" && !mode.include?(:take)
+				puts "This move is a take! nothing to take at destination -- return"
+				return false
+			elsif !validMove[2] == "take" && mode.include?(:take)
+				puts "This move is not allowed for a take -- return"
+				return false
+			end
 		end
 		return true
 	end
 
 	def checkInitial(piece,validMove)
-		if piece.class != "Pawn"
-			return true
-		end
-		if validMove.include?(:initial) && piece.initial == false
-			puts "This can only be made on first move"
-			return false
+		if piece.class.to_s == "Pawn"
+			if validMove[2] == "initial" && !piece.initial
+				puts "This can only be done on the first move -- return"
+				return false
+			end
 		end
 		return true
 	end
 
 	def obstructed(pos1, dPos, goodMove, piece)
-		if piece.class == "Knight"
+		if piece.class.to_s == "Knight"
 			return false
 		else
 			maxAbs = dPos.map {|x| x.abs}.max
 			j = 1
 			while j < maxAbs
-				newPos = pos1 + goodMove.collect { |n| n * j }
+				newPos = [ goodMove[0] * j + pos1[0] , goodMove[1] * j + pos1[1] ]
+#				newPos = goodMove.each_with_index { |val, k| pos1[k] + (val * j) }
 				@pieces.keys.each do |key|
 					if ChessBoard.posConverter(key) == newPos
+						p "Obstruction at: #{newPos} (#{ChessBoard.posReConverter(newPos)})"
 						return true
 					end
 				end
 				j += 1
 			end
 		end
+		return false
 	end
 
 	def correctDPos(piece1,dPos)
@@ -177,14 +182,14 @@ class ChessBoard
 		@pieces['h7'] = Pawn.new('black')	
 
 		@pieces['a1'] = Rook.new('white')	
-		@pieces['a8'] = Rook.new('white')	
-		@pieces['h1'] = Rook.new('black')	
+		@pieces['h1'] = Rook.new('white')	
+		@pieces['a8'] = Rook.new('black')	
 		@pieces['h8'] = Rook.new('black')	
 
-		@pieces['b1'] = Knight.new('black')	
-		@pieces['g1'] = Knight.new('black')	
-		@pieces['b8'] = Knight.new('white')	
-		@pieces['g8'] = Knight.new('white')	
+		@pieces['b1'] = Knight.new('white')	
+		@pieces['g1'] = Knight.new('white')	
+		@pieces['b8'] = Knight.new('black')	
+		@pieces['g8'] = Knight.new('black')	
 
 		@pieces['c1'] = Bishop.new('white')	
 		@pieces['f1'] = Bishop.new('white')	
@@ -232,7 +237,7 @@ end
 class Knight < Piece #Springer
 	def initialize(team)
 		super 
-		@moves  = [[2,1],[2,-1],[1,2],[1,-2],[-1,-2],[-1,-2],[-2,1],[-2,-1]]
+		@moves  = [[2,1],[2,-1],[1,2],[1,-2],[-1,-2],[-1,2],[-2,1],[-2,-1]]
 	end
 end
 
@@ -259,8 +264,11 @@ class King < Piece
 	end
 end
 
-movements = [["a2", "a3"],["a2", "a4"],["a2", "a5"],["a7", "a6"],
-			["a7", "a5"],["a7", "a4"],["a7", "b6"],["b8", "a6"],
-			["b8", "c6"],["b8", "d7"],["e2", "e3"],["e3", "e2"]]
+movements = [["b1", "a3"],["b2", "b4"],["a3", "c4"],["c4", "d6"],
+			["c7", "d6"],["h2", "h4"],["h4", "h5"],["h1", "h4"],
+			["h4", "a4"],["b8", "d7"],["e2", "e3"],["e3", "e2"]]
+# movements = [["a2", "a3"],["a2", "a4"],["a2", "a5"],["a7", "a6"],
+# 			["a7", "a5"],["a7", "a4"],["a7", "b6"],["b8", "a6"],
+# 			["b8", "c6"],["b8", "d7"],["e2", "e3"],["e3", "e2"]]
 
 ChessBoard.new(movements)
